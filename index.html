@@ -1,209 +1,85 @@
-<!DOCTYPE html>
-<html lang="es">
+<!DOCTYPE html><html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Clon de Youtube</title>
-  <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PWA Cristiana Infantil</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#121212" />
+  <link rel="icon" href="icon.png">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #121212;
+      color: #eee;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      text-align: center;
+    }
+    iframe {
+      width: 90vw;
+      height: 50vh;
+      border: none;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      background: black;
+    }
+    select, button {
+      padding: 10px;
+      margin: 0 5px;
+      font-size: 1rem;
+      border: none;
+      border-radius: 5px;
+    }
+    button {
+      background: #ff0000;
+      color: white;
+    }
+    button:hover {
+      background: #cc0000;
+    }
+    .controls {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+  </style>
 </head>
 <body>
-  
-  <header>
-    <div class="header-izquierdo">
-      <img src="imagen/menu.png" class="menu-icon">
-      <img src="imagen/logo.png" class="logo">
-    </div>
-    <div class="header-medio">
-      <input type="text" placeholder="Buscar" class="search-bar">
-      <div class="buscar-container">
-        <img src="imagen/buscar.png">
-        <div class="tooltip">Buscar</div>
-      </div>
-      <div class="mic-container">
-        <img src="imagen/microfono.png" class="mic-icon">
-        <div class="tooltip">Realiza búsquedas por voz</div>
-      </div> 
-    </div>
-    <div class="header-derecho">
-      <div class="subir-container">
-        <img src="imagen/subir-video.png">
-        <div class="tooltip">Subir videos</div>
-      </div>
-      <div class="notificacion-container">
-        <img src="imagen/notificacion.png">
-        <div class="tooltip">Notificaciones</div>
-      </div>
-      <img src="imagen/usuario.png" class="user-icon">
-    </div>
-  </header>
-  
-  <div class="container">
-    <div class="sidebar">
-      <div class="enlaces-nav">
-        <a href="#"><img src="imagen/home.png"><p>Home</p></a>
-        <a href="#"><img src="imagen/suscripciones.png"><p>Suscripciones</p></a>
-        <a href="#"><img src="imagen/ver-mas-tarde.png"><p>Ver más tarde</p></a>
-        <a href="#"><img src="imagen/playlist.png"><p>Playlist</p></a>
-        <a href="#"><img src="imagen/like.png"><p>Me Gusta</p></a>
-        <a href="#"><img src="imagen/descargar.png"><p>Descargar</p></a>
-        <hr>
-      </div>
-      <div class="canales-suscritos">
-        <h3>SUSCRIPCIONES</h3>
-        <a href="#"><img src="imagen/canal-1.jpg"><p>Holy Hexor</p></a>
-        <a href="#"><img src="imagen/canal-2.jpg"><p>Tpabomah</p></a>
-        <a href="#"><img src="imagen/canal-3.jpg"><p>Extended</p></a>
-        <a href="#"><img src="imagen/canal-4.jpg"><p>Anymal Live</p></a>
-        <a href="#"><img src="imagen/canal-5.jpg"><p>Team Liquid</p></a>
-        <a href="#"><img src="imagen/canal-6.jpg"><p>Gosu Gamers</p></a>
-        <a href="#"><img src="imagen/canal-7.jpg"><p>Less Calm</p></a>
-        <a href="#"><img src="imagen/canal-8.jpg"><p>Fútbol y más</p></a>
-      </div>
-    </div>
+  <h1>PWA Cristiana Infantil</h1>
+  <iframe id="player" allow="autoplay; encrypted-media" allowfullscreen loading="lazy"></iframe>  <div class="controls">
+    <select id="playlistSelect">
+      <option value="PLB9zNV1MFplTnIGH5KNaayhdW7SULGiD8">Música Cristiana Kids</option>
+      <option value="PLGYOf7BkKBf0iifp9NGfwId1wZcd1WSJX">VeggieTales</option>
+      <option value="PLokkQ-mfUn48tGRyaQ02wxTYv_rVC0gNY">Christian Songs for Kids</option>
+      <option value="PLM_LmQ7W6sg5cUZ6SaOnJOfmHzSS-4yRN">Kids Faith TV Playlist</option>
+      <option value="PLB9zNV1MFplT90LviXF4MyTPYoddW_V6b">Animated Christian Kids Songs</option>
+    </select>
+    <button id="load">Cargar playlist</button>
+  </div>  <script>
+    const iframe = document.getElementById('player');
+    const select = document.getElementById('playlistSelect');
 
-    <div class="main-content">
-      <div class="enlaces-ayuda">
-        <a href="#">Todos</a>
-        <a href="#">HTML</a>
-        <a href="#">CSS</a>
-        <a href="#">JavaScript</a>
-        <a href="#">React</a>
-        <a href="#">NextJS</a>
-        <a href="#">Python</a>
-        <a href="#">Desarrollo Web</a>
-        <a href="#">C++</a>
-        <a href="#">Desarollo de Software</a>
-        <a href="#">Java</a>
-        <a href="#">MongoDB</a>
-        <a href="#">NodeJS</a>
-        <a href="#" class="oculto">Ingenieria de Software</a>
-        <a href="#" class="oculto">UX/UI</a>
-      </div>
+    function loadPlaylist(listId) {
+      iframe.src = `https://www.youtube-nocookie.com/embed/videoseries?list=${listId}&rel=0&modestbranding=1&autoplay=1`;
+    }
 
-      <div class="lista-videos">
-        <div class="video">
-          <div class="miniatura-container">
-            <a href="play-video.html"><img src="imagen/miniatura-1.png" class="miniatura"></a>
-            <div>1:30</div>
-          </div>
-          <div class="video-perfil">
-            <img src="imagen/usuario.png">
-            <div class="video-info">
-              <p class="titulo">Aprende a hace un clon de Youtube con HTML CSS y JS</p>
-              <p class="autor">Código AM</p>
-              <p>100 vistas &bull; hace 1 día</p>
-            </div>
-          </div>
-        </div>
-        <div class="video">
-          <div class="miniatura-container">
-            <img src="imagen/miniatura-2.png" class="miniatura">
-            <div>2:30</div>
-          </div>
-          <div class="video-perfil">
-            <img src="imagen/usuario.png">
-            <div class="video-info">
-              <p class="titulo">Aprende a hace un clon de Youtube con HTML CSS y JS</p>
-              <p class="autor">Código AM</p>
-              <p>100 vistas &bull; hace 1 día</p>
-            </div>
-          </div>
-        </div>
-        <div class="video">
-          <img src="imagen/miniatura-3.png" class="miniatura">
-          <div class="video-perfil">
-            <img src="imagen/usuario.png">
-            <div class="video-info">
-              <p class="titulo">Aprende a hace un clon de Youtube con HTML CSS y JS</p>
-              <p class="autor">Código AM</p>
-              <p>100 vistas &bull; hace 1 día</p>
-            </div>
-          </div>
-        </div>
-        <div class="video">
-          <img src="imagen/miniatura-4.png" class="miniatura">
-          <div class="video-perfil">
-            <img src="imagen/usuario.png">
-            <div class="video-info">
-              <p class="titulo">Aprende a hace un clon de Youtube con HTML CSS y JS</p>
-              <p class="autor">Código AM</p>
-              <p>100 vistas &bull; hace 1 día</p>
-            </div>
-          </div>
-        </div>
-        <div class="video">
-          <img src="imagen/miniatura-5.png" class="miniatura">
-          <div class="video-perfil">
-            <img src="imagen/usuario.png">
-            <div class="video-info">
-              <p class="titulo">Aprende a hace un clon de Youtube con HTML CSS y JS</p>
-              <p class="autor">Código AM</p>
-              <p>100 vistas &bull; hace 1 día</p>
-            </div>
-          </div>
-        </div>
-        <div class="video">
-          <img src="imagen/miniatura-6.png" class="miniatura">
-          <div class="video-perfil">
-            <img src="imagen/usuario.png">
-            <div class="video-info">
-              <p class="titulo">Aprende a hace un clon de Youtube con HTML CSS y JS</p>
-              <p class="autor">Código AM</p>
-              <p>100 vistas &bull; hace 1 día</p>
-            </div>
-          </div>
-        </div>
-        <div class="video">
-          <img src="imagen/miniatura-7.png" class="miniatura">
-          <div class="video-perfil">
-            <img src="imagen/usuario.png">
-            <div class="video-info">
-              <p class="titulo">Aprende a hace un clon de Youtube con HTML CSS y JS</p>
-              <p class="autor">Código AM</p>
-              <p>100 vistas &bull; hace 1 día</p>
-            </div>
-          </div>
-        </div>
-        <div class="video">
-          <img src="imagen/miniatura-8.png" class="miniatura">
-          <div class="video-perfil">
-            <img src="imagen/usuario.png">
-            <div class="video-info">
-              <p class="titulo">Aprende a hace un clon de Youtube con HTML CSS y JS</p>
-              <p class="autor">Código AM</p>
-              <p>100 vistas &bull; hace 1 día</p>
-            </div>
-          </div>
-        </div>
-        <div class="video">
-          <img src="imagen/miniatura-9.png" class="miniatura">
-          <div class="video-perfil">
-            <img src="imagen/usuario.png">
-            <div class="video-info">
-              <p class="titulo">Aprende a hace un clon de Youtube con HTML CSS y JS</p>
-              <p class="autor">Código AM</p>
-              <p>100 vistas &bull; hace 1 día</p>
-            </div>
-          </div>
-        </div>
+    document.getElementById('load').addEventListener('click', () => {
+      const listId = select.value;
+      loadPlaylist(listId);
+    });
 
-      </div>
-
-
-    </div>
-  </div>
-
-
-
-
-
-
-
-
-
-
-
-  <script src="script.js"></script>
-
-</body>
+    window.addEventListener('load', () => {
+      loadPlaylist(select.value);
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js').then(() => {
+          console.log('SW registrado');
+        }).catch(err => console.error('Error registrando SW:', err));
+      }
+    });
+  </script></body>
 </html>
