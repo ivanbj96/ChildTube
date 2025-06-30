@@ -8,78 +8,96 @@
   <link rel="icon" href="icon.png">
   <style>
     body {
-      font-family: Arial, sans-serif;
-      background: #121212;
-      color: #eee;
+      margin: 0;
+      background-color: #000;
+      overflow-y: scroll;
+      font-family: sans-serif;
+    }
+    .video-container {
+      height: 100vh;
       display: flex;
-      flex-direction: column;
       align-items: center;
       justify-content: center;
-      min-height: 100vh;
-      margin: 0;
-      text-align: center;
+      scroll-snap-align: start;
     }
     iframe {
-      width: 90vw;
-      height: 50vh;
+      width: 100vw;
+      height: 100vh;
       border: none;
-      border-radius: 8px;
-      margin-bottom: 1rem;
-      background: black;
     }
-    select, button {
-      padding: 10px;
-      margin: 0 5px;
-      font-size: 1rem;
-      border: none;
-      border-radius: 5px;
-    }
-    button {
-      background: #ff0000;
-      color: white;
-    }
-    button:hover {
-      background: #cc0000;
-    }
-    .controls {
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      justify-content: center;
+    main {
+      scroll-snap-type: y mandatory;
+      overflow-y: scroll;
+      height: 100vh;
     }
   </style>
 </head>
 <body>
-  <h1>PWA Cristiana Infantil</h1>
-  <iframe id="player" allow="autoplay; encrypted-media" allowfullscreen loading="lazy"></iframe>  <div class="controls">
-    <select id="playlistSelect">
-      <option value="PLB9zNV1MFplTnIGH5KNaayhdW7SULGiD8">Música Cristiana Kids</option>
-      <option value="PLGYOf7BkKBf0iifp9NGfwId1wZcd1WSJX">VeggieTales</option>
-      <option value="PLokkQ-mfUn48tGRyaQ02wxTYv_rVC0gNY">Christian Songs for Kids</option>
-      <option value="PLM_LmQ7W6sg5cUZ6SaOnJOfmHzSS-4yRN">Kids Faith TV Playlist</option>
-      <option value="PLB9zNV1MFplT90LviXF4MyTPYoddW_V6b">Animated Christian Kids Songs</option>
-    </select>
-    <button id="load">Cargar playlist</button>
-  </div>  <script>
-    const iframe = document.getElementById('player');
-    const select = document.getElementById('playlistSelect');
+  <main id="videoFeed"></main>  <script>
+    const playlists = [
+      "PLB9zNV1MFplTnIGH5KNaayhdW7SULGiD8",
+      "PLGYOf7BkKBf0iifp9NGfwId1wZcd1WSJX",
+      "PLokkQ-mfUn48tGRyaQ02wxTYv_rVC0gNY",
+      "PLM_LmQ7W6sg5cUZ6SaOnJOfmHzSS-4yRN",
+      "PLB9zNV1MFplT90LviXF4MyTPYoddW_V6b"
+    ];
 
-    function loadPlaylist(listId) {
-      iframe.src = `https://www.youtube-nocookie.com/embed/videoseries?list=${listId}&rel=0&modestbranding=1&autoplay=1`;
+    const videoFeed = document.getElementById('videoFeed');
+    let videoIds = [];
+    let currentIndex = 0;
+
+    async function fetchVideosFromPlaylist(playlistId) {
+      const proxy = 'https://cors-anywhere.herokuapp.com/';
+      const url = `https://www.youtube.com/feeds/videos.xml?playlist_id=${playlistId}`;
+      const response = await fetch(proxy + url);
+      const text = await response.text();
+      const parser = new DOMParser();
+      const xml = parser.parseFromString(text, 'text/xml');
+      const entries = xml.querySelectorAll('entry');
+      return Array.from(entries).map(entry => entry.querySelector('yt\\:videoId').textContent);
     }
 
-    document.getElementById('load').addEventListener('click', () => {
-      const listId = select.value;
-      loadPlaylist(listId);
+    async function init() {
+      for (const pid of playlists) {
+        const vids = await fetchVideosFromPlaylist(pid);
+        videoIds.push(...vids);
+      }
+      shuffleArray(videoIds);
+      loadMoreVideos(5);
+    }
+
+    function loadMoreVideos(count) {
+      for (let i = 0; i < count && currentIndex < videoIds.length; i++) {
+        const videoId = videoIds[currentIndex++];
+        const container = document.createElement('div');
+        container.className = 'video-container';
+        const iframe = document.createElement('iframe');
+        iframe.src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&mute=1&controls=0&rel=0&modestbranding=1`;
+        iframe.allow = 'autoplay; encrypted-media';
+        iframe.allowFullscreen = true;
+        container.appendChild(iframe);
+        videoFeed.appendChild(container);
+      }
+    }
+
+    function shuffleArray(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+    }
+
+    window.addEventListener('scroll', () => {
+      if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 2) {
+        loadMoreVideos(3);
+      }
     });
 
     window.addEventListener('load', () => {
-      loadPlaylist(select.value);
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js').then(() => {
-          console.log('SW registrado');
-        }).catch(err => console.error('Error registrando SW:', err));
+        navigator.serviceWorker.register('sw.js');
       }
+      init();
     });
   </script></body>
 </html>
