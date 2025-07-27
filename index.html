@@ -1,106 +1,32 @@
-<!DOCTYPE html><html lang="es">
+<!DOCTYPE html>
+<html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>PWA Cristiana Infantil</title>
-  <meta name="theme-color" content="#121212" />
-  <link rel="icon" href="icon.png">
-  <style>
-    body {
-      margin: 0;
-      background-color: #000;
-      overflow-y: scroll;
-      font-family: sans-serif;
-    }
-    .video-container {
-      height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      scroll-snap-align: start;
-    }
-    iframe {
-      width: 100vw;
-      height: 100vh;
-      border: none;
-    }
-    main {
-      scroll-snap-type: y mandatory;
-      overflow-y: scroll;
-      height: 100vh;
-    }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#ffffff" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="style.css" />
+  <title>Biblia RV1960</title>
+
+  <!-- 📘 Fuente de datos: API de Bolls.life (RV1960)
+       Ejemplo: https://bolls.life/api/v1/bible/Reina-Valera_1960/gen/1 -->
 </head>
 <body>
-  <main id="videoFeed"></main>  <script>
-    const playlists = [
-      "PLB9zNV1MFplTnIGH5KNaayhdW7SULGiD8",
-      "PLGYOf7BkKBf0iifp9NGfwId1wZcd1WSJX",
-      "PLokkQ-mfUn48tGRyaQ02wxTYv_rVC0gNY",
-      "PLM_LmQ7W6sg5cUZ6SaOnJOfmHzSS-4yRN",
-      "PLB9zNV1MFplT90LviXF4MyTPYoddW_V6b"
-    ];
+  <header>
+    <h1>Biblia RV1960</h1>
+    <select id="bookSelect" aria-label="Selector de libro"></select>
+    <select id="chapterSelect" aria-label="Selector de capítulo"></select>
+  </header>
 
-    const videoFeed = document.getElementById('videoFeed');
-    let videoIds = [];
-    let currentIndex = 0;
+  <main id="bibleContent">
+    <p>Cargando capítulo...</p>
+  </main>
 
-    async function fetchVideosFromPlaylist(playlistId) {
-      const url = `https://www.youtube.com/feeds/videos.xml?playlist_id=${playlistId}`;
-      try {
-        const response = await fetch(url);
-        const text = await response.text();
-        const parser = new DOMParser();
-        const xml = parser.parseFromString(text, 'text/xml');
-        const entries = xml.querySelectorAll('entry');
-        return Array.from(entries).map(entry => {
-          const idUrl = entry.querySelector('id').textContent;
-          return idUrl.split(':').pop();
-        });
-      } catch (error) {
-        console.error('Error al cargar videos:', error);
-        return [];
-      }
-    }
+  <footer>
+    <input type="text" id="searchInput" placeholder="Buscar versículo..." />
+    <button onclick="searchVerses()">🔍</button>
+  </footer>
 
-    async function init() {
-      for (const pid of playlists) {
-        const vids = await fetchVideosFromPlaylist(pid);
-        videoIds.push(...vids);
-      }
-      shuffleArray(videoIds);
-      loadMoreVideos(5);
-    }
-
-    function loadMoreVideos(count) {
-      for (let i = 0; i < count && currentIndex < videoIds.length; i++) {
-        const videoId = videoIds[currentIndex++];
-        const container = document.createElement('div');
-        container.className = 'video-container';
-        const iframe = document.createElement('iframe');
-        iframe.src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&mute=1&controls=0&rel=0&modestbranding=1`;
-        iframe.allow = 'autoplay; encrypted-media';
-        iframe.allowFullscreen = true;
-        container.appendChild(iframe);
-        videoFeed.appendChild(container);
-      }
-    }
-
-    function shuffleArray(array) {
-      for (let i = array.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [array[i], array[j]] = [array[j], array[i]];
-      }
-    }
-
-    window.addEventListener('scroll', () => {
-      if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 2) {
-        loadMoreVideos(3);
-      }
-    });
-
-    window.addEventListener('load', () => {
-      init();
-    });
-  </script></body>
+  <script src="app.js"></script>
+</body>
 </html>
