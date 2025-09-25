@@ -7,6 +7,8 @@
   <title>KaraokePWA — Letras animadas sincronizadas</title>
   <!-- GSAP para animaciones -->
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.2/dist/gsap.min.js"></script>
+  <!-- Whisper.cpp WASM para transcripción gratuita -->
+  <script src="https://cdn.jsdelivr.net/gh/ggerganov/whisper.cpp/web/whisper.js"></script>
   <style>
     :root{--bg:#0f1724;--card:#0b1220;--muted:#94a3b8;--accent:#60a5fa}
     html,body{height:100%;margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,"Helvetica Neue",Arial}
@@ -29,7 +31,6 @@
     .lyrics-item{padding:6px;border-bottom:1px dashed rgba(255,255,255,0.02);font-size:14px;color:var(--muted);display:flex;justify-content:space-between;align-items:center}
     .lyrics-item:last-child{border-bottom:none}
     .tiny{font-size:12px;color:var(--muted)}
-    /* Word highlighting */
     .word{display:inline-block;padding:0 3px;opacity:0.9;transform-origin:center}
     .word.active{color:#081022;background:var(--accent);padding:4px 8px;border-radius:6px}
     footer{display:flex;justify-content:space-between;align-items:center;margin-top:12px}
@@ -46,42 +47,39 @@
           <input id="audioFile" type="file" accept="audio/*">
         </label>
         <button id="btnLoadLRC" class="btn">Cargar .lrc</button>
-        <button id="btnStartSync" class="btn">Modo sincronizar (presiona SPACE)</button>
+        <button id="btnStartSync" class="btn">Modo sincronizar (SPACE)</button>
         <button id="btnPlay" class="btn primary">Play ▶</button>
+        <button id="btnTranscribe" class="btn">Transcribir audio</button>
       </div>
     </header><div class="row">
   <div class="left">
     <div class="stage" id="stage">
       <div>
-        <div id="currentLine" class="line">Carga una canción y las letras (o crea un .lrc) <small>Las palabras se animan según la duración de la línea</small></div>
+        <div id="currentLine" class="line">Carga una canción y las letras <small>Las palabras se animan según la duración de la línea</small></div>
       </div>
     </div>
     <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
       <audio id="audio" controls style="width:100%;background:transparent"></audio>
     </div>
   </div>
-
   <div class="right">
     <div style="margin-bottom:8px">
       <div style="display:flex;gap:8px;margin-bottom:6px">
         <button id="btnParse" class="btn">Parsear LRC / Generar</button>
         <button id="btnClear" class="btn">Limpiar</button>
       </div>
-      <textarea id="lyricsInput" placeholder="Pega tus letras aquí. Formato simple (una línea por texto) o formato .lrc con tiempos: [mm:ss.xx] Letra"></textarea>
+      <textarea id="lyricsInput" placeholder="Pega tus letras aquí o deja que la app transcriba tu audio"></textarea>
     </div>
-
     <div class="lyrics-list" id="lyricsList"></div>
   </div>
 </div>
 
 <footer>
-  <div class="hint">Sugerencia rápida: para sincronizar desde 0, pega cada línea de la letra (sin timestamps), pulsa <strong>Modo sincronizar</strong>, presiona Play y usa <strong>SPACE</strong> para marcar el tiempo de cada línea. Cuando acabes pulsa <strong>Parsear</strong>.</div>
-  <div class="muted">Hecho con GSAP · Export idea: grabar pantalla o usar herramientas de render externo</div>
+  <div class="hint">Sugerencia: para sincronizar, pulsa Modo sincronizar y usa SPACE para marcar cada línea. Luego Parsear.</div>
+  <div class="muted">Hecho con GSAP y Whisper.cpp WASM · Export idea: grabar pantalla o render externo</div>
 </footer>
 
   </div><script>
-// KaraokePWA - código vanilla
-// Variables principales
 const audioEl = document.getElementById('audio');
 const audioFile = document.getElementById('audioFile');
 const lyricsInput = document.getElementById('lyricsInput');
@@ -92,30 +90,84 @@ const btnPlay = document.getElementById('btnPlay');
 const currentLineEl = document.getElementById('currentLine');
 const btnStartSync = document.getElementById('btnStartSync');
 const btnLoadLRC = document.getElementById('btnLoadLRC');
+const btnTranscribe = document.getElementById('btnTranscribe');
 
-let timeline = []; // {time: seconds, text: string}
-let isSyncMode = false;
-let syncPointer = 0;
-let recordedTimes = [];
-let rafId = null;
-let lastIdx = -1;
+let timeline = [], isSyncMode=false, syncPointer=0, recordedTimes=[], rafId=null, lastIdx=-1;
 
-// Helpers
-function parseLRC(text){
-  // admite líneas con [mm:ss.xx] o sin timestamps
+// Audio file load
+audioFile.addEventListener('change', (e)=>{
+  const f = e.target.files[0];
+  if(!f) return;
+  audioEl.src = URL.createObjectURL(f);
+});
+
+// Parse LRC
+btnParse.addEventListener('click', ()=>{
+  const parsed = parseLRC(lyricsInput.value || '');
+  const hasTimes = parsed.some(x=>x.time!=null);
+  if(!hasTimes){ timeline = parsed.map(x=>({time:null,text:x.text})); }
+  else { timeline = parsed.filter(x=>x.time!=null).sort((a,b)=>a.time-b.time); }
+  renderList();
+});
+
+btnClear.addEventListener('click', ()=>{lyricsInput.value=''; timeline=[]; renderList(); currentLineEl.innerHTML='Carga una canción y las letras';});
+
+btnPlay.addEventListener('click', ()=>{
+  if(audioEl.paused){ audioEl.play(); btnPlay.textContent='Pausa ⏸'; startLoop(); } else { audioEl.pause(); btnPlay.textContent='Play ▶'; stopLoop(); }
+});
+
+btnStartSync.addEventListener('click', ()=>{
+  const text = lyricsInput.value.trim();
+  if(!text){ alert('Pega líneas primero'); return; }
   const lines = text.split(/\n+/).map(l=>l.trim()).filter(Boolean);
-  const out = [];
+  timeline = lines.map(l=>({time:null,text:l}));
+  isSyncMode=true; syncPointer=0; recordedTimes=[];
+  alert('Modo sincronizar activado. Pulsa SPACE por línea.');
+});
+window.addEventListener('keydown', (e)=>{
+  if(e.code==='Space' && isSyncMode){
+    e.preventDefault();
+    if(syncPointer<timeline.length){ recordedTimes.push(audioEl.currentTime); syncPointer++; }
+    else { isSyncMode=false; for(let i=0;i<timeline.length;i++) timeline[i].time = recordedTimes[i] ?? null; renderList(); alert('Sincronización lista'); }
+  }
+});
+
+// Loop animación
+function startLoop(){ stopLoop(); rafId=requestAnimationFrame(loop); }
+function stopLoop(){ if(rafId) cancelAnimationFrame(rafId); rafId=null; }
+function loop(){
+  const t=audioEl.currentTime;
+  if(t && timeline.length){
+    let idx=-1;
+    for(let i=0;i<timeline.length;i++){ if(timeline[i].time!=null && timeline[i].time<=t) idx=i; else if(timeline[i].time>t) break; }
+    if(idx!==-1 && idx!==lastIdx){ showLine(idx); lastIdx=idx; }
+  }
+  rafId=requestAnimationFrame(loop);
+}
+
+function showLine(idx){
+  const item=timeline[idx]; if(!item) return;
+  const words=item.text.split(/\s+/).filter(Boolean);
+  currentLineEl.innerHTML='';
+  const container=document.createElement('div'); container.style.display='inline-block';
+  words.forEach(w=>{ const sp=document.createElement('span'); sp.className='word'; sp.textContent=w+' '; container.appendChild(sp); });
+  currentLineEl.appendChild(container);
+  const nextTime=(timeline[idx+1] && timeline[idx+1].time!=null)?timeline[idx+1].time:(audioEl.duration||audioEl.currentTime+2);
+  const lineDuration=Math.max(0.4,nextTime-item.time);
+  const wordEls=container.querySelectorAll('.word');
+  gsap.killTweensOf(wordEls); wordEls.forEach(v=>v.classList.remove('active'));
+  if(wordEls.length===0) return;
+  const per=lineDuration/wordEls.length;
+  wordEls.forEach((w,i)=>{ gsap.delayedCall(per*i, ()=>{ w.classList.add('active'); gsap.fromTo(w,{scale:0.92},{scale:1.02,duration:0.18}); }); gsap.delayedCall(per*i+Math.min(per*0.8,0.6), ()=>{ w.classList.remove('active'); }); });
+}
+
+function parseLRC(text){
+  const lines=text.split(/\n+/).map(l=>l.trim()).filter(Boolean);
+  const out=[];
   for(const l of lines){
-    const match = l.match(/(\d+):(\d{2}(?:\.\d{1,3})?)\s*(.*)/);
-    if(match){
-      const m = parseInt(match[1],10);
-      const s = parseFloat(match[2]);
-      const t = m*60 + s;
-      out.push({time: t, text: match[3]||''});
-    } else {
-      // si no tiene tiempo, lo añadimos con time null
-      out.push({time: null, text: l});
-    }
+    const match=l.match(/(\d+):(\d{2}(?:\.\d{1,3})?)\s*(.*)/);
+    if(match){ const m=parseInt(match[1],10); const s=parseFloat(match[2]); const t=m*60+s; out.push({time:t,text:match[3]||''}); }
+    else { out.push({time:null,text:l}); }
   }
   return out;
 }
@@ -125,158 +177,27 @@ function renderList(){
   timeline.forEach((item,i)=>{
     const div=document.createElement('div');
     div.className='lyrics-item';
-    div.innerHTML = `<span>${formatTime(item.time)} ${escapeHtml(item.text)}</span><span class="tiny">#${i+1}</span>`;
+    div.innerHTML=`<span>${formatTime(item.time)} ${escapeHtml(item.text)}</span><span class="tiny">#${i+1}</span>`;
     div.addEventListener('click',()=>{ if(item.time!=null){audioEl.currentTime=item.time; audioEl.play();} });
     lyricsList.appendChild(div);
   });
 }
-
 function formatTime(t){ if(t==null) return '--:--'; const m=Math.floor(t/60); const s=(t%60).toFixed(2).padStart(5,'0'); return `[${m}:${s}]`; }
 function escapeHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-// Cuando el usuario carga un archivo de audio
-audioFile.addEventListener('change', (e)=>{
-  const f = e.target.files[0];
-  if(!f) return;
-  const url = URL.createObjectURL(f);
-  audioEl.src = url;
+// Transcripción Whisper WASM
+btnTranscribe.addEventListener('click', async ()=>{
+  if(!audioEl.src){ alert('Carga primero un audio'); return; }
+  lyricsInput.value='Transcribiendo... esto puede tardar varios segundos';
+  const arrayBuffer=await fetch(audioEl.src).then(r=>r.arrayBuffer());
+  const whisper = new Whisper({model:'tiny'}); // modelo pequeño para demo
+  const result = await whisper.transcribe(arrayBuffer);
+  lyricsInput.value=result.text;
+  alert('Transcripción lista!');
 });
 
-// Cargar .lrc (simulamos con file input via prompt de texto)
-btnLoadLRC.addEventListener('click', async ()=>{
-  // pedimos al usuario pegar el contenido del .lrc
-  const text = prompt('Pega aquí el contenido del .lrc (text)');
-  if(!text) return;
-  lyricsInput.value = text;
-});
-
-// Parsear
-btnParse.addEventListener('click', ()=>{
-  const parsed = parseLRC(lyricsInput.value || '');
-  // Si hay líneas sin timestamps: si existen algunos con time usamos interpolación, si ninguno con time se dejan null
-  const hasTimes = parsed.some(x=>x.time!=null);
-  if(!hasTimes){
-    // dejamos tiempo null -> usuario debe sincronizar o asignar manualmente
-    timeline = parsed.map(x=>({time:null,text:x.text}));
-  } else {
-    // tomamos sólo los que tienen tiempo y ordenamos
-    timeline = parsed.filter(x=>x.time!=null).sort((a,b)=>a.time-b.time);
-  }
-  renderList();
-});
-
-// Limpiar
-btnClear.addEventListener('click', ()=>{lyricsInput.value=''; timeline=[]; renderList(); currentLineEl.innerHTML='Carga una canción y las letras';});
-
-// Play / pausa con el botón personalizado
-btnPlay.addEventListener('click', ()=>{
-  if(audioEl.paused){ audioEl.play(); btnPlay.textContent='Pausa ⏸'; startLoop(); } else { audioEl.pause(); btnPlay.textContent='Play ▶'; stopLoop(); }
-});
-
-// Sincronización: usuario presiona espacio mientras suena para marcar inicio de cada línea
-btnStartSync.addEventListener('click', ()=>{
-  if(!audioEl.src){ alert('Carga primero un audio.'); return; }
-  const text = lyricsInput.value.trim();
-  if(!text){ alert('Pega las líneas de la letra (una por línea) en el área de la derecha.'); return; }
-  const lines = text.split(/\n+/).map(l=>l.trim()).filter(Boolean);
-  timeline = lines.map(l=>({time:null,text:l}));
-  isSyncMode = true; syncPointer = 0; recordedTimes = [];
-  alert('Modo sincronizar activado. Reproduce el audio y presiona ESPACIO para cada línea en orden. Cuando termines, pulsa PARSEAR.');
-});
-
-// Capturamos la tecla espacio para marcar tiempos en modo sync
-window.addEventListener('keydown', (e)=>{
-  if(e.code==='Space'){
-    if(isSyncMode){
-      e.preventDefault();
-      if(syncPointer < timeline.length){
-        recordedTimes.push(audioEl.currentTime);
-        syncPointer++;
-        // feedback visual
-        document.body.style.outline = '3px solid rgba(96,165,250,0.12)';
-        setTimeout(()=> document.body.style.outline='none',120);
-      } else {
-        // terminamos
-        isSyncMode=false;
-        // asignar tiempos
-        for(let i=0;i<timeline.length;i++) timeline[i].time = recordedTimes[i] ?? null;
-        renderList();
-        alert('Sincronización finalizada. Revisa y pulsa Parsear si quieres ordenar/ajustar.');
-      }
-    }
-  }
-});
-
-// Bucle que actualiza la línea actual y crea animaciones por palabras
-function startLoop(){ stopLoop(); rafId = requestAnimationFrame(loop); }
-function stopLoop(){ if(rafId) cancelAnimationFrame(rafId); rafId=null; }
-
-function loop(){
-  const t = audioEl.currentTime;
-  if(t && timeline.length){
-    // encontrar índice activo: el último elemento cuyo time <= t
-    let idx = -1;
-    for(let i=0;i<timeline.length;i++){
-      if(timeline[i].time!=null && timeline[i].time <= t) idx = i;
-      else if(timeline[i].time!=null && timeline[i].time > t) break;
-    }
-    if(idx!==-1 && idx!==lastIdx){
-      // activar la línea
-      showLine(idx);
-      lastIdx = idx;
-    }
-  }
-  rafId = requestAnimationFrame(loop);
-}
-
-function showLine(idx){
-  const item = timeline[idx];
-  if(!item) return;
-  // crear spans por palabra
-  const words = item.text.split(/\s+/).filter(Boolean);
-  currentLineEl.innerHTML = '';
-  const container = document.createElement('div');
-  container.style.display='inline-block';
-  words.forEach(w=>{
-    const sp = document.createElement('span'); sp.className='word'; sp.textContent = w+' '; container.appendChild(sp);
-  });
-  currentLineEl.appendChild(container);
-  const nextTime = (timeline[idx+1] && timeline[idx+1].time!=null) ? timeline[idx+1].time : (audioEl.duration || audioEl.currentTime + 2);
-  const lineDuration = Math.max(0.4, nextTime - item.time);
-
-  // animación GSAP: destacar palabras una a una
-  const wordEls = container.querySelectorAll('.word');
-  // limpiar animaciones previas
-  gsap.killTweensOf(wordEls);
-  wordEls.forEach(v=>v.classList.remove('active'));
-  if(wordEls.length===0) return;
-  const per = lineDuration / wordEls.length;
-  wordEls.forEach((w,i)=>{
-    gsap.delayedCall(per * i, ()=>{ w.classList.add('active'); gsap.fromTo(w,{scale:0.92},{scale:1.02,duration:0.18}); });
-    // quitar active ligeramente después para que se note el paso
-    gsap.delayedCall(per * i + Math.min(per*0.8,0.6), ()=>{ w.classList.remove('active'); });
-  });
-}
-
-// Si el usuario hace click en una línea en la lista, salta
-lyricsList.addEventListener('click',(e)=>{
-  const target = e.target.closest('.lyrics-item');
-  if(!target) return;
-});
-
-// cuando audio finaliza
-audioEl.addEventListener('ended', ()=>{ btnPlay.textContent='Play ▶'; stopLoop(); lastIdx = -1; });
-// cuando se actualiza metadata
-audioEl.addEventListener('loadedmetadata', ()=>{ /* ready */ });
-
-// Guardar cambios de parse si habíamos registrado tiempos por sync
-// Para simplicidad: el botón Parsear ya reconstruye timeline si algunos tiempos null
-
-// Inicial: ejemplo rápido
-lyricsInput.value = `[00:00.00] En el principio
-[00:04.00] Creó los cielos y la tierra
-[00:08.20] Y todo cantó`;
+// Ejemplo rápido
+lyricsInput.value = `[00:00.00] En el principio\n[00:04.00] Creó los cielos y la tierra\n[00:08.20] Y todo cantó`;
 btnParse.click();
-
 </script></body>
 </html>
